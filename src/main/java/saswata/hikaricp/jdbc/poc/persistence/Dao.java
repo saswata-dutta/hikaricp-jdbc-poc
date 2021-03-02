@@ -1,41 +1,78 @@
-package hikaricp.jdbc.poc.persistence;
+package saswata.hikaricp.jdbc.poc.persistence;
 
-import hikaricp.jdbc.poc.models.Address;
-import hikaricp.jdbc.poc.models.Person;
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.function.Consumer;
+import saswata.hikaricp.jdbc.poc.models.Address;
+import saswata.hikaricp.jdbc.poc.models.Person;
 
 public class Dao {
   public static final String DB_URL = "jdbc:hsqldb:mem:MYDB";
   public static final String DB_USER = "SA";
   public static final String DB_PASS = "";
 
-  private final Connection connection;
+  //  private final Connection connection;
+  private final HikariDataSource ds;
 
-  public Dao() throws SQLException {
-    connection = DriverManager.getConnection(Dao.DB_URL, Dao.DB_USER, Dao.DB_PASS);
+  public Dao() {
+    //    connection = DriverManager.getConnection(Dao.DB_URL, Dao.DB_USER, Dao.DB_PASS);
+
+    HikariConfig config = new HikariConfig();
+    config.setJdbcUrl(DB_URL);
+    config.setUsername(DB_USER);
+    config.setPassword(DB_PASS);
+
+    config.setMaximumPoolSize(1); // using singleton pool
+    config.setConnectionTimeout(3000);
+    config.setValidationTimeout(1000);
+
+    // for demo
+    config.addDataSourceProperty("cachePrepStmts", "true");
+    config.addDataSourceProperty("prepStmtCacheSize", "250");
+    config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+
+    ds = new HikariDataSource(config);
   }
 
   public void doWork(Consumer<Connection> work) throws SQLException {
+    Connection connection = null;
     try {
-      connection.setAutoCommit(false);
+      connection = ds.getConnection();
+      System.out.println("Got connection from pool = " + connection);
+      connection.setAutoCommit(false); // hikari can also set this
       work.accept(connection);
       connection.commit();
     } catch (Exception e) {
-      System.err.println("Error " + e.getMessage());
-      e.printStackTrace();
+      System.out.println("Error " + e.getMessage());
+      e.printStackTrace(System.out);
 
-      connection.rollback();
+      // dont rely on close to do the rollback
+      if (connection != null) {
+        try {
+          connection.rollback();
+        } catch (SQLException e1) {
+          System.out.println("Error during rollback " + e1.getMessage());
+          e.printStackTrace(System.out);
+        }
+      }
+    } finally {
+      if (connection != null) {
+        connection.setAutoCommit(true);
+        connection.close();
+        // ok to close as HikariProxyConnection is returned from pool,
+        // wrapping an actual JDBCConnection
+      }
     }
   }
 
-  public void close() throws SQLException {
-    connection.close();
+  public void close() {
+    //    connection.close();
+    if (ds != null) ds.close(); // close the pool at app shutdown to release db connections fast
   }
 
   private static final String PERSON_MERGE_SQL =

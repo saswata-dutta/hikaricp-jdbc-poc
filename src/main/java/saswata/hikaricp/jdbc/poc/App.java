@@ -1,11 +1,11 @@
-package hikaricp.jdbc.poc;
+package saswata.hikaricp.jdbc.poc;
 
-import hikaricp.jdbc.poc.models.Address;
-import hikaricp.jdbc.poc.models.Person;
-import hikaricp.jdbc.poc.persistence.Dao;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import saswata.hikaricp.jdbc.poc.models.Address;
+import saswata.hikaricp.jdbc.poc.models.Person;
+import saswata.hikaricp.jdbc.poc.persistence.Dao;
 
 public class App {
 
@@ -23,7 +23,10 @@ public class App {
 
     // singleton inject into service
     Dao dao = new Dao();
+
     run(dao);
+    badRun(dao);
+
     query(dao);
 
     dao.close();
@@ -54,6 +57,20 @@ public class App {
   private static void run(Dao dao) throws SQLException {
     dao.doWork(App::run);
     System.out.println("Done Dao ...");
+  }
+
+  private static void badRun(Dao dao) throws SQLException {
+    Person bad = new Person(1, "bad", 666);
+
+    dao.doWork(
+        conn -> {
+          try {
+            Dao.upsertPerson(bad, conn);
+          } catch (SQLException e) {
+            throw new RuntimeException("Caught while doing business logic", e);
+          }
+        });
+    System.out.println("Done Bad run ...");
   }
 
   private static void query(Dao dao) throws SQLException {

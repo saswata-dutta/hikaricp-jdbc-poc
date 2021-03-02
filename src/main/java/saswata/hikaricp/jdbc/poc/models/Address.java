@@ -1,4 +1,4 @@
-package hikaricp.jdbc.poc.models;
+package saswata.hikaricp.jdbc.poc.models;
 
 public class Address {
   public final long id;
